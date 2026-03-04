@@ -46,6 +46,6 @@ func main() {
 	http.HandleFunc("/download", downloadHandler)
 	http.HandleFunc("/upload", uploadHandler)
 
-	log.Println("Speed test server running on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Println("Speed test server running on :9898")
+	log.Fatal(http.ListenAndServe(":9898", nil))
 }

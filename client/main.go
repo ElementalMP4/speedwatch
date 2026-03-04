@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	endpoint = "http://localhost:8080"
+	endpoint = "http://10.43.237.1:9898"
 )
 
 type LatencyResult struct {
