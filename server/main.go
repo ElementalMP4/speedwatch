@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const downloadSize = 50 * 1024 * 1024 // 50 MB
+const downloadSize = 10 * 1024 * 1024 // 50 MB
 
 type Config struct {
 	ServerAddress string `json:"bind"`
