@@ -6,13 +6,19 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
 
-const (
-	endpoint = "http://10.43.237.1:9898"
-)
+func getEndpoint() string {
+	alternativeEndpoint, overridden := os.LookupEnv("SPEEDWATCH_ENDPOINT")
+	if overridden {
+		return alternativeEndpoint
+	} else {
+		return "http://10.43.237.1:9898"
+	}
+}
 
 type LatencyResult struct {
 	Latency float64
@@ -62,7 +68,7 @@ func measureLatency() (LatencyResult, error) {
 
 	for i := 0; i < attempts; i++ {
 		start := time.Now()
-		resp, err := client.Get(endpoint + "/ping")
+		resp, err := client.Get(getEndpoint() + "/ping")
 		if err != nil {
 			errors = append(errors, err)
 			continue
@@ -91,7 +97,7 @@ func measureDownload() (TransferResult, error) {
 	var result TransferResult
 	client := &http.Client{Timeout: 30 * time.Second}
 	start := time.Now()
-	resp, err := client.Get(endpoint + "/download")
+	resp, err := client.Get(getEndpoint() + "/download")
 	if err != nil {
 		return result, err
 	}
@@ -110,12 +116,12 @@ func measureDownload() (TransferResult, error) {
 
 func measureUpload() (TransferResult, error) {
 	var result TransferResult
-	size := 10 * 1024 * 1024
+	size := 10 * 1024 * 1024 // 10MB
 	data := make([]byte, size)
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	start := time.Now()
-	resp, err := client.Post(endpoint+"/upload",
+	resp, err := client.Post(getEndpoint()+"/upload",
 		"application/octet-stream",
 		bytes.NewReader(data))
 	if err != nil {

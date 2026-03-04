@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const downloadSize = 10 * 1024 * 1024 // 50 MB
+const downloadSize = 10 * 1024 * 1024 // 10 MB
 
 type Config struct {
 	ServerAddress string `json:"bind"`
@@ -35,8 +35,8 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func downloadHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", downloadSize)) // 50MB
-	buffer := make([]byte, 1024*1024)                                 // 1MB chunk
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", downloadSize))
+	buffer := make([]byte, 1024*1024) // 1MB chunks
 
 	for i := 0; i < downloadSize/len(buffer); i++ {
 		_, err := w.Write(buffer)
