@@ -36,14 +36,11 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 
 func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", downloadSize))
-	buffer := make([]byte, 1024*1024) // 1MB chunks
-
-	for i := 0; i < downloadSize/len(buffer); i++ {
-		_, err := w.Write(buffer)
-		if err != nil {
-			log.Printf("Error whilst sending download: %v\n", err)
-			return
-		}
+	buffer := make([]byte, downloadSize)
+	_, err := w.Write(buffer)
+	if err != nil {
+		log.Printf("Error whilst sending download: %v\n", err)
+		return
 	}
 }
 
