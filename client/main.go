@@ -35,6 +35,7 @@ func (t *TransferResult) CalculateSpeed() float64 {
 }
 
 func main() {
+	log.Printf("Using server at %s\n", getEndpoint())
 	log.Println("Testing latency...")
 
 	latencyResult, err := measureLatency()
