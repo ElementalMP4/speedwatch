@@ -13,6 +13,7 @@ import (
 )
 
 const (
+	pingTests       = 10
 	downloadStreams = 5
 	uploadStreams   = 3
 	testDuration    = 10 * time.Second
@@ -32,7 +33,7 @@ func getEndpoint() string {
 	if alt, ok := os.LookupEnv("SPEEDWATCH_ENDPOINT"); ok {
 		return alt
 	}
-	return "http://10.43.237.1:9898"
+	return "http://speedtest.elementalmp4.co.uk"
 }
 
 type LatencyResult struct {
@@ -59,7 +60,10 @@ func main() {
 	}
 
 	log.Println("Warming up download...")
-	measureParallelDownload(downloadStreams, warmupDuration)
+	_, err = measureParallelDownload(downloadStreams, warmupDuration)
+	if err != nil {
+		log.Fatalf("Download warmup failed: %v", err)
+	}
 
 	log.Println("Testing download...")
 	downloadMbps, err := measureParallelDownload(downloadStreams, testDuration)
@@ -68,7 +72,10 @@ func main() {
 	}
 
 	log.Println("Warming up upload...")
-	measureParallelUpload(uploadStreams, warmupDuration)
+	_, err = measureParallelUpload(uploadStreams, warmupDuration)
+	if err != nil {
+		log.Fatalf("Upload warmup failed: %v", err)
+	}
 
 	log.Println("Testing upload...")
 	uploadMbps, err := measureParallelUpload(uploadStreams, testDuration)
@@ -89,9 +96,8 @@ func measureLatency() (LatencyResult, error) {
 	var result LatencyResult
 	var total time.Duration
 	var success int
-	attempts := 5
 
-	for i := 0; i < attempts; i++ {
+	for i := 0; i < pingTests; i++ {
 		start := time.Now()
 		resp, err := speedTestClient.Get(getEndpoint() + "/ping")
 		if err != nil {
@@ -107,7 +113,7 @@ func measureLatency() (LatencyResult, error) {
 	}
 
 	result.Latency = float64(total.Milliseconds()) / float64(success)
-	result.Loss = 100 * float64(attempts-success) / float64(attempts)
+	result.Loss = 100 * float64(pingTests-success) / float64(pingTests)
 
 	return result, nil
 }
@@ -115,34 +121,41 @@ func measureLatency() (LatencyResult, error) {
 func measureParallelDownload(n int, duration time.Duration) (float64, error) {
 	var wg sync.WaitGroup
 	results := make(chan TransferResult, n)
+	errors := make(chan error, n)
+	start := time.Now()
 
 	for i := 0; i < n; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			r, _ := measureDownload(duration)
-			results <- r
+			r, err := measureDownload(duration)
+			if err != nil {
+				errors <- err
+			} else {
+				results <- r
+			}
 		}()
 	}
 
 	wg.Wait()
 	close(results)
+	close(errors)
 
-	var totalBytes float64
-	var totalTime float64
-
-	for r := range results {
-		totalBytes += r.BytesTransferred
-		totalTime += r.DurationSeconds
+	for err := range errors {
+		return 0, err
 	}
 
-	totalTime = totalTime / float64(len(results))
+	var totalBytes float64
+	for r := range results {
+		totalBytes += r.BytesTransferred
+	}
 
-	if totalTime == 0 {
+	elapsed := time.Since(start).Seconds()
+	if elapsed == 0 {
 		return 0, fmt.Errorf("download failed")
 	}
 
-	return (totalBytes * 8) / (totalTime * 1024 * 1024), nil
+	return (totalBytes * 8) / (elapsed * 1024 * 1024), nil
 }
 
 func measureDownload(duration time.Duration) (TransferResult, error) {
@@ -172,30 +185,48 @@ func measureDownload(duration time.Duration) (TransferResult, error) {
 	return result, nil
 }
 
-type zeroReader struct{}
+type timedReader struct {
+	deadline time.Time
+}
 
-func (z zeroReader) Read(p []byte) (int, error) {
+func (t *timedReader) Read(p []byte) (int, error) {
+	if time.Now().After(t.deadline) {
+		return 0, io.EOF
+	}
+
+	// Fill buffer with zeros
 	for i := range p {
 		p[i] = 0
 	}
+
 	return len(p), nil
 }
 
 func measureParallelUpload(n int, duration time.Duration) (float64, error) {
 	var wg sync.WaitGroup
 	results := make(chan TransferResult, n)
+	errors := make(chan error, n)
 
 	for i := 0; i < n; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			r, _ := measureUpload(duration)
-			results <- r
+			r, err := measureUpload(duration)
+			if err != nil {
+				errors <- err
+			} else {
+				results <- r
+			}
 		}()
 	}
 
 	wg.Wait()
 	close(results)
+	close(errors)
+
+	for err := range errors {
+		return 0, err
+	}
 
 	var totalBytes float64
 	var totalTime float64
@@ -215,33 +246,30 @@ func measureParallelUpload(n int, duration time.Duration) (float64, error) {
 func measureUpload(duration time.Duration) (TransferResult, error) {
 	var result TransferResult
 
-	ctx, cancel := context.WithTimeout(context.Background(), duration)
-	defer cancel()
+	reader := &timedReader{
+		deadline: time.Now().Add(duration),
+	}
 
-	req, err := http.NewRequestWithContext(
-		ctx,
+	req, err := http.NewRequest(
 		"POST",
 		getEndpoint()+"/upload",
-		zeroReader{},
+		reader,
 	)
+
 	if err != nil {
 		return result, err
 	}
 
-	// Force chunked encoding (infinite stream)
 	req.ContentLength = -1
 
 	start := time.Now()
 	resp, err := speedTestClient.Do(req)
 	elapsed := time.Since(start)
 
-	if ctx.Err() == context.DeadlineExceeded {
-		err = nil
-	}
-
 	if err != nil {
 		return result, err
 	}
+
 	defer resp.Body.Close()
 
 	var uploadResponse struct {
