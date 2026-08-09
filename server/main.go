@@ -25,6 +25,7 @@ func loadConfig() (Config, error) {
 
 func pingHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("x-speedwatch-detect", "Hello from SpeedWatch!")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("pong"))
 }
@@ -32,6 +33,7 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("x-speedwatch-detect", "Hello from SpeedWatch!")
 
 	// 32KB buffer, which we re-use for efficiency
 	buffer := make([]byte, 32*1024)
@@ -68,6 +70,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("x-speedwatch-detect", "Hello from SpeedWatch!")
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"bytes":   bytesReceived,
