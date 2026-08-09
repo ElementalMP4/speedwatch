@@ -3,25 +3,12 @@ package main
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/ElementalMP4/loggerino/log"
 )
-
-type Config struct {
-	ServerAddress string `json:"bind"`
-}
-
-func loadConfig() (Config, error) {
-	var config Config
-	data, err := os.ReadFile("config.json")
-	if err != nil {
-		return config, err
-	}
-	err = json.Unmarshal(data, &config)
-	return config, err
-}
 
 func pingHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
@@ -59,14 +46,14 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	bytesReceived, err := io.Copy(io.Discard, r.Body)
 	if err != nil {
-		log.Printf("Upload error: %v\n", err)
+		log.Errorf("upload", "Upload error: %v\n", err)
 		http.Error(w, "upload error", http.StatusInternalServerError)
 		return
 	}
 
 	duration := time.Since(start)
 
-	log.Printf("Received %d bytes in %v\n", bytesReceived, duration)
+	log.Infof("upload", "Received %d bytes in %v\n", bytesReceived, duration)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
@@ -78,11 +65,16 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func main() {
-	config, err := loadConfig()
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+func getEnvString(key, fallback string) string {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
 	}
+	return raw
+}
+
+func main() {
+	serverAddress := getEnvString("SPEEDWATCH_BIND", "0.0.0.0:9321")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ping", pingHandler)
@@ -90,7 +82,7 @@ func main() {
 	mux.HandleFunc("/upload", uploadHandler)
 
 	server := &http.Server{
-		Addr:              config.ServerAddress,
+		Addr:              serverAddress,
 		Handler:           mux,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      0,
@@ -98,6 +90,6 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	log.Printf("Speed test server running on %s\n", config.ServerAddress)
-	log.Fatal(server.ListenAndServe())
+	log.Okf("server", "Speed test server running on %s\n", serverAddress)
+	log.Fatalf("server", "%v", server.ListenAndServe())
 }
