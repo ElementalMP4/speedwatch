@@ -33,7 +33,7 @@ func getEndpoint() string {
 	if alt, ok := os.LookupEnv("SPEEDWATCH_ENDPOINT"); ok {
 		return alt
 	}
-	return "http://speedtest.elementalmp4.co.uk"
+	return "https://speedtest.elementalmp4.co.uk"
 }
 
 type LatencyResult struct {
